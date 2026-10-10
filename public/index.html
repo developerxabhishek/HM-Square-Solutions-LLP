@@ -1,0 +1,680 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orders Ingestion</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1' y='2' width='14' height='3' rx='1' fill='%232f6fed'/%3E%3Crect x='1' y='6.5' width='14' height='3' rx='1' fill='%232f6fed' opacity='.7'/%3E%3Crect x='1' y='11' width='14' height='3' rx='1' fill='%232f6fed' opacity='.45'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #f5f6f8; --surface: #ffffff; --surface-2: #f8f9fb;
+    --border: #e4e7ec; --border-strong: #cfd4dc;
+    --text: #1b2230; --muted: #667085;
+    --accent: #2f6fed; --accent-soft: #eaf1fe; --on-accent: #ffffff;
+    --ok: #17804a; --ok-soft: #e8f6ee;
+    --warn: #a86400; --warn-soft: #fdf3e2;
+    --bad: #c4302b; --bad-soft: #fdecea;
+    --chip: #eef1f5;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1218; --surface: #161a22; --surface-2: #1b2029;
+      --border: #272d38; --border-strong: #363e4b;
+      --text: #e6e9ef; --muted: #98a2b3;
+      --accent: #6c9cff; --accent-soft: #1b2740; --on-accent: #0b1220;
+      --ok: #4cc38a; --ok-soft: #13291f;
+      --warn: #e5a13b; --warn-soft: #2c2314;
+      --bad: #ff6b63; --bad-soft: #321a1a;
+      --chip: #222833;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1218; --surface: #161a22; --surface-2: #1b2029;
+    --border: #272d38; --border-strong: #363e4b;
+    --text: #e6e9ef; --muted: #98a2b3;
+    --accent: #6c9cff; --accent-soft: #1b2740; --on-accent: #0b1220;
+    --ok: #4cc38a; --ok-soft: #13291f;
+    --warn: #e5a13b; --warn-soft: #2c2314;
+    --bad: #ff6b63; --bad-soft: #321a1a;
+    --chip: #222833;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }
+  code { background: var(--chip); padding: 1px 5px; border-radius: 4px; }
+  [hidden] { display: none !important; }
+
+  .topbar { position: sticky; top: 0; z-index: 2; background: var(--surface); border-bottom: 1px solid var(--border); }
+  .topbar-inner { max-width: 1120px; margin: 0 auto; padding: 0 16px; height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .brand { font-weight: 650; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+  .brand small { font-weight: 400; color: var(--muted); font-size: 13px; }
+
+  main { max-width: 1120px; margin: 0 auto; padding: 20px 16px 48px; display: flex; flex-direction: column; gap: 16px; }
+  .grid { display: grid; grid-template-columns: 3fr 2fr; gap: 16px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; min-width: 0; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  h2 { font-size: 15px; margin: 0 0 12px; }
+  .card-head h2 { margin: 0; }
+  h3 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 18px 0 8px; }
+  .muted { color: var(--muted); }
+  .small { font-size: 12.5px; }
+
+  .dropzone { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 30px 16px; text-align: center; border: 1.5px dashed var(--border-strong); border-radius: 10px; cursor: pointer; transition: border-color .15s, background .15s; }
+  .dropzone:hover, .dropzone.over { border-color: var(--accent); background: var(--accent-soft); }
+  .dropzone:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .file-chosen { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+  #file-name { font-weight: 600; word-break: break-all; }
+  #upload-btn { margin-left: auto; }
+
+  .btn { font: inherit; padding: 7px 14px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); cursor: pointer; }
+  .btn:hover { background: var(--surface-2); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+  .btn.primary:hover { filter: brightness(1.07); }
+  .btn:disabled { opacity: .55; cursor: default; }
+  .btn.small { padding: 4px 10px; font-size: 13px; }
+  .btn.more { margin-top: 12px; }
+
+  .progress { height: 6px; margin-top: 12px; background: var(--chip); border-radius: 99px; overflow: hidden; }
+  .progress .bar { height: 100%; width: 0; background: var(--accent); transition: width .15s; }
+
+  .message { margin: 12px 0 0; padding: 8px 12px; border-radius: 8px; background: var(--chip); }
+  .message.ok { background: var(--ok-soft); color: var(--ok); }
+  .message.info { background: var(--accent-soft); color: var(--accent); }
+  .message.error { background: var(--bad-soft); color: var(--bad); }
+
+  .pill, .badge, .chip { display: inline-block; border-radius: 99px; background: var(--chip); color: var(--muted); white-space: nowrap; }
+  .pill { font-size: 12.5px; padding: 4px 10px; }
+  .badge { font-size: 12px; font-weight: 600; padding: 2px 9px; text-transform: capitalize; }
+  .chip { font-size: 12px; padding: 1px 8px; }
+  .ok-tone, .badge.completed, .pill.ok { background: var(--ok-soft); color: var(--ok); }
+  .badge.processing { background: var(--accent-soft); color: var(--accent); }
+  .badge.retrying, .chip.parse, .chip.validation { background: var(--warn-soft); color: var(--warn); }
+  .badge.failed, .pill.bad, .chip.database { background: var(--bad-soft); color: var(--bad); }
+
+  .cluster-list { list-style: none; margin: 0; padding: 0; }
+  .cluster-list li { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .cluster-list li:last-child { border-bottom: 0; }
+  .cluster-list .detail { margin-left: auto; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.ok { background: var(--ok); }
+  .dot.bad { background: var(--bad); }
+
+  .meta { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px 18px; }
+  .meta-label { display: block; font-size: 12px; color: var(--muted); }
+  .meta-value { word-break: break-all; }
+  .meta .wide { grid-column: 1 / -1; }
+  .tiles { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-top: 16px; }
+  .tile { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+  .tile-value { font-size: 20px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .tile-label { font-size: 12px; color: var(--muted); }
+  .tile.warn .tile-value { color: var(--warn); }
+
+  .bar-row { display: grid; grid-template-columns: 76px 1fr auto; align-items: center; gap: 10px; margin: 7px 0; font-size: 13px; }
+  .bar-track { height: 8px; background: var(--chip); border-radius: 99px; overflow: hidden; }
+  .bar-fill { height: 100%; background: var(--accent); border-radius: 99px; transition: width .3s; }
+  .bar-fill.warn { background: var(--warn); }
+  .bar-fill.bad { background: var(--bad); }
+
+  .table-wrap { overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
+  .table-wrap.tall { max-height: 440px; }
+  table { width: 100%; min-width: 640px; border-collapse: collapse; font-size: 13px; }
+  th { position: sticky; top: 0; text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); background: var(--surface-2); }
+  th, td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: 0; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.mono { word-break: break-all; }
+  td.reasons { min-width: 220px; }
+  #errors-card table { min-width: 860px; }
+  #errors-card td.mono { min-width: 340px; }
+  tr.clickable { cursor: pointer; }
+  tr.clickable:hover, tr.clickable:focus { background: var(--surface-2); outline: none; }
+
+  .lookup { display: flex; flex-wrap: wrap; gap: 8px; }
+  select, input[type="text"] { font: inherit; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); }
+  input[type="text"] { flex: 1; min-width: 200px; }
+  select:focus, input:focus, .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  @media (max-width: 860px) {
+    .grid, .two { grid-template-columns: 1fr; }
+    .tiles { grid-template-columns: repeat(3, 1fr); }
+  }
+  @media (max-width: 420px) {
+    .tiles { grid-template-columns: repeat(2, 1fr); }
+    .brand small { display: none; }
+  }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">Orders Ingestion <small>GCS → sharded PostgreSQL</small></div>
+    <span id="health-pill" class="pill">Checking…</span>
+  </div>
+</header>
+
+<main>
+  <div class="grid">
+    <section class="card" aria-labelledby="upload-title">
+      <h2 id="upload-title">Upload orders file</h2>
+      <label id="dropzone" class="dropzone">
+        <input type="file" id="file-input" accept=".csv,text/csv" hidden>
+        <strong>Drop a CSV file here, or click to choose</strong>
+        <span class="muted small">Columns: order_id, customer_id, order_date, order_amount, status</span>
+      </label>
+      <div id="file-chosen" class="file-chosen" hidden>
+        <span id="file-name"></span>
+        <span id="file-size" class="muted small"></span>
+        <button id="upload-btn" class="btn primary" type="button">Upload</button>
+      </div>
+      <div id="upload-progress" class="progress" hidden><div class="bar"></div></div>
+      <p id="upload-message" class="message" hidden></p>
+      <p class="muted small">No file? Run <code>npm run generate:orders</code> to create a 10,000-row sample in <code>sample-data/</code>.</p>
+    </section>
+
+    <section class="card" aria-labelledby="cluster-title">
+      <h2 id="cluster-title">Cluster</h2>
+      <div id="cluster"><p class="muted small">Loading…</p></div>
+    </section>
+  </div>
+
+  <section id="job-card" class="card" aria-labelledby="job-title" hidden>
+    <div class="card-head">
+      <h2 id="job-title">Ingestion job</h2>
+      <span id="job-status" class="badge"></span>
+    </div>
+    <div id="job-meta" class="meta"></div>
+    <div id="job-stats" class="tiles"></div>
+    <div class="two">
+      <div>
+        <h3>Rows per shard</h3>
+        <div id="job-shards"></div>
+      </div>
+      <div>
+        <h3>Rejected rows by stage</h3>
+        <div id="job-stages"></div>
+      </div>
+    </div>
+    <p id="job-error" class="message error" hidden></p>
+  </section>
+
+  <section id="errors-card" class="card" aria-labelledby="errors-title" hidden>
+    <div class="card-head">
+      <h2 id="errors-title">Rejected rows</h2>
+      <span id="errors-count" class="muted small"></span>
+    </div>
+    <div class="table-wrap tall">
+      <table>
+        <thead><tr><th class="num">Line</th><th>Stage</th><th>Reason</th><th>Row values</th></tr></thead>
+        <tbody id="errors-body"></tbody>
+      </table>
+    </div>
+    <button id="errors-more" class="btn more" type="button" hidden>Load more</button>
+  </section>
+
+  <section class="card" aria-labelledby="lookup-title">
+    <h2 id="lookup-title">Find orders</h2>
+    <form id="lookup-form" class="lookup">
+      <select id="lookup-kind" aria-label="Search by">
+        <option value="customer">Customer ID</option>
+        <option value="order">Order ID</option>
+      </select>
+      <input id="lookup-value" type="text" placeholder="e.g. CUST-000123" aria-label="Search value" required>
+      <button class="btn primary" type="submit">Search</button>
+    </form>
+    <p id="lookup-message" class="message" hidden></p>
+    <div id="orders-wrap" class="table-wrap" style="margin-top:12px" hidden>
+      <table>
+        <thead><tr><th>Order ID</th><th>Customer</th><th>Order date</th><th class="num">Amount</th><th>Status</th><th class="num">Shard</th></tr></thead>
+        <tbody id="orders-body"></tbody>
+      </table>
+    </div>
+    <button id="orders-more" class="btn more" type="button" hidden>Load more</button>
+  </section>
+
+  <section class="card" aria-labelledby="jobs-title">
+    <div class="card-head">
+      <h2 id="jobs-title">Recent uploads</h2>
+      <button id="jobs-refresh" class="btn small" type="button">Refresh</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>File</th><th>Status</th><th class="num">Rows</th><th class="num">Rejected</th><th>Uploaded</th></tr></thead>
+        <tbody id="jobs-body"><tr><td colspan="5" class="muted">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script>
+'use strict';
+
+const $ = (id) => document.getElementById(id);
+const numberFormat = new Intl.NumberFormat();
+const fmt = (value) => (value === null || value === undefined ? '—' : numberFormat.format(value));
+
+/** Builds DOM nodes. Strings always become text nodes, so CSV content can never inject HTML. */
+function el(tag, props = {}, ...children) {
+  const node = document.createElement(tag);
+  for (const [key, value] of Object.entries(props)) {
+    if (value === null || value === undefined || value === false) continue;
+    if (key === 'class') node.className = value;
+    else if (key.startsWith('on')) node.addEventListener(key.slice(2), value);
+    else node.setAttribute(key, value === true ? '' : value);
+  }
+  for (const child of children.flat()) {
+    if (child === null || child === undefined || child === false) continue;
+    node.append(child instanceof Node ? child : document.createTextNode(String(child)));
+  }
+  return node;
+}
+
+async function api(path) {
+  const res = await fetch(path, { headers: { accept: 'application/json' } });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error?.message ?? `Request failed (HTTP ${res.status})`);
+  return body;
+}
+
+function show(node, visible = true) { node.hidden = !visible; }
+
+function say(node, text, tone = '') {
+  node.textContent = text ?? '';
+  node.className = `message ${tone}`;
+  node.hidden = !text;
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+}
+
+const formatDate = (value) => (value ? new Date(value).toLocaleString() : '—');
+
+function statusLabel(job) {
+  if (job.status === 'queued' && job.attempts > 0) return 'retry scheduled';
+  return job.status;
+}
+const statusClass = (job) => (job.status === 'queued' && job.attempts > 0 ? 'retrying' : job.status);
+
+/* ---------------------------------------------------------------- cluster */
+
+async function refreshCluster() {
+  const pill = $('health-pill');
+  try {
+    const [healthRes, topology] = await Promise.all([fetch('/health'), api('/shards')]);
+    const health = await healthRes.json();
+    const healthy = health.status === 'ok';
+    pill.textContent = healthy ? 'All databases healthy' : 'Degraded';
+    pill.className = `pill ${healthy ? 'ok' : 'bad'}`;
+
+    const ranges = {};
+    for (const range of topology.ranges) {
+      (ranges[range.shardId] ??= []).push(range.from === range.to ? `${range.from}` : `${range.from}–${range.to}`);
+    }
+    const row = (name, check, detail) =>
+      el('li', {},
+        el('span', { class: `dot ${check.ok ? 'ok' : 'bad'}` }),
+        el('strong', {}, name),
+        el('span', { class: 'muted small' }, check.ok ? `${check.latencyMs} ms` : check.error),
+        el('span', { class: 'muted small detail' }, detail));
+
+    const s = health.storage ?? {};
+    const isEmulator = s.driver === 'GcsStorage' && s.endpoint && !s.endpoint.includes('googleapis.com');
+    const storage = s.driver !== 'GcsStorage'
+      ? 'Local folder (offline mode, not GCS)'
+      : isEmulator
+        ? `GCS emulator · gs://${s.bucket} · ${s.endpoint.replace(/^https?:\/\//, '')}`
+        : `Google Cloud Storage · gs://${s.bucket}`;
+    const adc = s.credentials?.ok === true ? 'ADC: credentials found' : s.credentials?.ok === false ? 'ADC: not logged in' : null;
+
+    $('cluster').replaceChildren(...[
+      el('ul', { class: 'cluster-list' },
+        row('Meta DB', health.checks.metaDatabase, 'jobs + rejected rows'),
+        health.checks.shards.map((shard) => row(`Shard ${shard.shardId}`, shard, `buckets ${(ranges[shard.shardId] ?? []).join(', ')}`))),
+      el('p', { class: 'muted small' },
+        'Routing: ', el('code', {}, 'customer_id'), ` → md5 → ${topology.virtualBuckets} buckets → ${topology.shardCount} shards`),
+      el('p', { class: 'muted small' }, `Storage: ${storage}`, adc && s.driver === 'GcsStorage' ? ` · ${adc}` : ''),
+      s.credentials?.ok === false && !isEmulator
+        ? el('p', { class: 'message error small' },
+            'No Google credentials found, so uploads will fail. Run ', el('code', {}, 'gcloud auth application-default login'), ' and restart.')
+        : null,
+    ].filter(Boolean));
+  } catch {
+    pill.textContent = 'API unreachable';
+    pill.className = 'pill bad';
+  }
+}
+
+/* ----------------------------------------------------------------- upload */
+
+let selectedFile = null;
+const fileInput = $('file-input');
+const dropzone = $('dropzone');
+
+function chooseFile(file) {
+  if (!file) return;
+  selectedFile = file;
+  $('file-name').textContent = file.name;
+  $('file-size').textContent = formatBytes(file.size);
+  show($('file-chosen'));
+  say($('upload-message'), '');
+}
+
+fileInput.addEventListener('change', () => chooseFile(fileInput.files[0]));
+for (const type of ['dragenter', 'dragover']) {
+  dropzone.addEventListener(type, (event) => { event.preventDefault(); dropzone.classList.add('over'); });
+}
+for (const type of ['dragleave', 'drop']) {
+  dropzone.addEventListener(type, (event) => { event.preventDefault(); dropzone.classList.remove('over'); });
+}
+dropzone.addEventListener('drop', (event) => chooseFile(event.dataTransfer.files[0]));
+
+/** XHR instead of fetch so the upload progress bar can show bytes sent. */
+function uploadFile(file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/upload-orders');
+    xhr.upload.addEventListener('progress', (event) => {
+      if (event.lengthComputable) onProgress(event.loaded / event.total);
+    });
+    xhr.addEventListener('load', () => {
+      let body = {};
+      try { body = JSON.parse(xhr.responseText); } catch { /* non-JSON error page */ }
+      if (xhr.status >= 200 && xhr.status < 300) resolve(body);
+      else reject(new Error(body.error?.message ?? `Upload failed (HTTP ${xhr.status})`));
+    });
+    xhr.addEventListener('error', () => reject(new Error('Network error: is the server running?')));
+    const form = new FormData();
+    form.append('file', file);
+    xhr.send(form);
+  });
+}
+
+$('upload-btn').addEventListener('click', async () => {
+  if (!selectedFile) return;
+  const button = $('upload-btn');
+  const progress = $('upload-progress');
+  const bar = progress.querySelector('.bar');
+  const message = $('upload-message');
+  button.disabled = true;
+  bar.style.width = '0%';
+  show(progress);
+  say(message, 'Uploading…', 'info');
+  try {
+    const job = await uploadFile(selectedFile, (fraction) => {
+      bar.style.width = `${Math.round(fraction * 100)}%`;
+      if (fraction >= 1) say(message, 'Saving to storage and queueing the job…', 'info');
+    });
+    bar.style.width = '100%';
+    say(message,
+      job.duplicate
+        ? 'This exact file was uploaded before, so no new job was created. Showing the existing job.'
+        : 'Stored and queued. Processing in the background…',
+      job.duplicate ? 'info' : 'ok');
+    watchJob(job.jobId);
+    refreshJobs();
+  } catch (err) {
+    say(message, err.message, 'error');
+  } finally {
+    button.disabled = false;
+    setTimeout(() => show(progress, false), 800);
+  }
+});
+
+/* -------------------------------------------------------------------- job */
+
+let watchedJobId = null;
+let pollTimer = null;
+
+async function watchJob(jobId) {
+  clearTimeout(pollTimer);
+  const isNewJob = watchedJobId !== jobId;
+  if (isNewJob) {
+    watchedJobId = jobId;
+    resetErrors(jobId);
+    history.replaceState(null, '', `#job=${jobId}`);
+  }
+  let job;
+  try {
+    job = await api(`/jobs/${jobId}`);
+  } catch (err) {
+    show($('job-card'));
+    say($('job-error'), `Could not load job: ${err.message}`, 'error');
+    return;
+  }
+  if (watchedJobId !== jobId) return; // user switched to another job meanwhile
+  renderJob(job);
+
+  const running = job.status === 'processing' || (job.status === 'queued' && job.attempts === 0);
+  if (running) {
+    pollTimer = setTimeout(() => watchJob(jobId), 1000);
+  } else if (job.status === 'queued') {
+    pollTimer = setTimeout(() => watchJob(jobId), 5000); // waiting for a retry
+  } else {
+    if ((job.stats?.rejectedRows ?? 0) > 0) loadErrors(true);
+    else show($('errors-card'), false);
+    refreshJobs();
+  }
+}
+
+function renderJob(job) {
+  show($('job-card'));
+  const badge = $('job-status');
+  badge.textContent = statusLabel(job);
+  badge.className = `badge ${statusClass(job)}`;
+
+  const meta = (label, value, wide) =>
+    el('div', { class: wide ? 'wide' : null }, el('span', { class: 'meta-label' }, label), el('span', { class: `meta-value${wide ? ' mono' : ''}` }, value));
+  $('job-meta').replaceChildren(
+    meta('File', job.file.name),
+    meta('Size', formatBytes(job.file.sizeBytes)),
+    meta('Uploaded', formatDate(job.createdAt)),
+    meta('Attempts', `${job.attempts} of ${job.maxAttempts}`),
+    meta('Stored at', job.file.storageUri, true),
+    meta('Job ID', job.jobId, true));
+
+  const stats = job.stats ?? {};
+  const seconds = stats.durationMs === undefined ? null : `${(stats.durationMs / 1000).toFixed(2)} s`;
+  const tiles = [
+    ['Rows read', stats.totalRows],
+    ['Inserted', stats.inserted],
+    ['Updated', stats.updated],
+    ['Unchanged', stats.unchanged],
+    ['Rejected', stats.rejectedRows, (stats.rejectedRows ?? 0) > 0],
+    ['Time', seconds],
+  ];
+  $('job-stats').replaceChildren(...tiles.map(([label, value, warn]) =>
+    el('div', { class: `tile${warn ? ' warn' : ''}` },
+      el('div', { class: 'tile-value' }, typeof value === 'number' ? fmt(value) : (value ?? '—')),
+      el('div', { class: 'tile-label' }, label))));
+
+  const bar = (label, value, total, caption, tone = '') =>
+    el('div', { class: 'bar-row' },
+      el('span', {}, label),
+      el('div', { class: 'bar-track' },
+        el('div', { class: `bar-fill ${tone}`, style: `width:${total ? Math.max(value ? 2 : 0, (value / total) * 100) : 0}%` })),
+      el('span', { class: 'muted small num' }, caption));
+
+  const shards = Object.entries(stats.shards ?? {}).sort(([a], [b]) => Number(a) - Number(b));
+  const shardTotal = shards.reduce((sum, [, shard]) => sum + shard.rows, 0);
+  $('job-shards').replaceChildren(...(shards.length
+    ? shards.map(([id, shard]) => bar(`Shard ${id}`, shard.rows, shardTotal, `${fmt(shard.rows)} rows · ${fmt(shard.batches)} batch${shard.batches === 1 ? '' : 'es'}`))
+    : [el('p', { class: 'muted small' }, job.status === 'failed' ? 'No rows were written.' : 'Shows up once the first batch is written.')]));
+
+  const stages = stats.rejectedByStage ?? {};
+  const rejectedTotal = stats.rejectedRows ?? 0;
+  $('job-stages').replaceChildren(
+    bar('Parse', stages.parse ?? 0, rejectedTotal, fmt(stages.parse ?? 0), 'warn'),
+    bar('Validation', stages.validation ?? 0, rejectedTotal, fmt(stages.validation ?? 0), 'warn'),
+    bar('Database', stages.database ?? 0, rejectedTotal, fmt(stages.database ?? 0), 'bad'),
+    el('p', { class: 'muted small' },
+      'Parse: wrong column count or broken quoting. Validation: a field breaks a rule. Database: Postgres refused the row.'));
+
+  say($('job-error'), job.lastError ? `Last error: ${job.lastError}` : '', 'error');
+}
+
+/* ---------------------------------------------------------- rejected rows */
+
+const ERRORS_PAGE = 50;
+const errorsState = { jobId: null, offset: 0 };
+
+function resetErrors(jobId) {
+  errorsState.jobId = jobId;
+  errorsState.offset = 0;
+  $('errors-body').replaceChildren();
+  show($('errors-card'), false);
+}
+
+function formatRaw(raw) {
+  if (!raw) return '—';
+  const text = Object.entries(raw)
+    .filter(([key]) => key !== 'lineNumber' && key !== 'bucket')
+    .map(([key, value]) => `${key}=${value}`)
+    .join('  ');
+  return text.length > 400 ? `${text.slice(0, 400)}…` : text;
+}
+
+async function loadErrors(reset) {
+  const { jobId } = errorsState;
+  if (reset) {
+    errorsState.offset = 0;
+    $('errors-body').replaceChildren();
+  }
+  let page;
+  try {
+    page = await api(`/jobs/${jobId}/errors?limit=${ERRORS_PAGE}&offset=${errorsState.offset}`);
+  } catch (err) {
+    show($('errors-card'));
+    $('errors-count').textContent = err.message;
+    return;
+  }
+  if (errorsState.jobId !== jobId) return;
+  errorsState.offset += page.errors.length;
+  $('errors-body').append(...page.errors.map((e) =>
+    el('tr', {},
+      el('td', { class: 'num' }, e.lineNumber),
+      el('td', {}, el('span', { class: `chip ${e.stage}` }, e.stage)),
+      el('td', { class: 'reasons' }, e.errors.join('; ')),
+      el('td', { class: 'mono' }, formatRaw(e.raw)))));
+  const total = page.totalRejected ?? errorsState.offset;
+  $('errors-count').textContent = `Showing ${fmt(errorsState.offset)} of ${fmt(total)}`;
+  show($('errors-card'));
+  show($('errors-more'), page.errors.length === ERRORS_PAGE && errorsState.offset < total);
+}
+
+$('errors-more').addEventListener('click', () => loadErrors(false));
+
+/* ----------------------------------------------------------- order lookup */
+
+const ordersState = { customerId: null, cursor: null };
+
+function orderRow(order) {
+  return el('tr', {},
+    el('td', { class: 'mono' }, order.orderId),
+    el('td', {}, order.customerId),
+    el('td', {}, formatDate(order.orderDate)),
+    el('td', { class: 'num' }, Number(order.orderAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })),
+    el('td', {}, el('span', { class: 'chip' }, order.status)),
+    el('td', { class: 'num' }, order.shardId));
+}
+
+async function loadCustomerPage() {
+  const params = new URLSearchParams({ customerId: ordersState.customerId, limit: '25' });
+  if (ordersState.cursor) params.set('cursor', ordersState.cursor);
+  const page = await api(`/orders?${params}`);
+  ordersState.cursor = page.nextCursor;
+  $('orders-body').append(...page.orders.map(orderRow));
+  const shown = $('orders-body').children.length;
+  show($('orders-wrap'), shown > 0);
+  show($('orders-more'), Boolean(page.nextCursor));
+  say($('lookup-message'),
+    shown
+      ? `${fmt(shown)} order${shown === 1 ? '' : 's'} for ${page.customerId}${page.nextCursor ? ' so far' : ''}, all read from shard ${page.shardId} (customer_id is the shard key, so only one shard is queried).`
+      : `No orders for ${page.customerId}. Its data would live on shard ${page.shardId}.`,
+    shown ? 'ok' : 'info');
+}
+
+$('lookup-kind').addEventListener('change', (event) => {
+  $('lookup-value').placeholder = event.target.value === 'order' ? 'e.g. 97da2849-d73e-4438-a907-d090402c802d' : 'e.g. CUST-000123';
+});
+
+$('lookup-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const kind = $('lookup-kind').value;
+  const value = $('lookup-value').value.trim();
+  if (!value) return;
+  $('orders-body').replaceChildren();
+  show($('orders-wrap'), false);
+  show($('orders-more'), false);
+  say($('lookup-message'), 'Searching…', 'info');
+  try {
+    if (kind === 'order') {
+      const order = await api(`/orders/${encodeURIComponent(value)}`);
+      $('orders-body').append(orderRow(order));
+      show($('orders-wrap'));
+      say($('lookup-message'), `Found on shard ${order.shardId}. order_id is not the shard key, so all shards were queried in parallel.`, 'ok');
+    } else {
+      ordersState.customerId = value;
+      ordersState.cursor = null;
+      await loadCustomerPage();
+    }
+  } catch (err) {
+    say($('lookup-message'), err.message, 'error');
+  }
+});
+
+$('orders-more').addEventListener('click', async () => {
+  try {
+    await loadCustomerPage();
+  } catch (err) {
+    say($('lookup-message'), err.message, 'error');
+  }
+});
+
+/* --------------------------------------------------------- recent uploads */
+
+async function refreshJobs() {
+  try {
+    const { jobs } = await api('/jobs?limit=10');
+    const open = (job) => {
+      watchJob(job.jobId);
+      $('job-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    $('jobs-body').replaceChildren(...(jobs.length
+      ? jobs.map((job) => el('tr', {
+          class: 'clickable',
+          tabindex: '0',
+          title: 'Show this job',
+          onclick: () => open(job),
+          onkeydown: (event) => { if (event.key === 'Enter') open(job); },
+        },
+        el('td', {}, job.file.name),
+        el('td', {}, el('span', { class: `badge ${statusClass(job)}` }, statusLabel(job))),
+        el('td', { class: 'num' }, fmt(job.stats?.totalRows)),
+        el('td', { class: 'num' }, fmt(job.stats?.rejectedRows)),
+        el('td', {}, formatDate(job.createdAt))))
+      : [el('tr', {}, el('td', { colspan: '5', class: 'muted' }, 'No uploads yet.'))]));
+  } catch (err) {
+    $('jobs-body').replaceChildren(el('tr', {}, el('td', { colspan: '5', class: 'muted' }, `Could not load uploads: ${err.message}`)));
+  }
+}
+
+$('jobs-refresh').addEventListener('click', refreshJobs);
+
+/* ------------------------------------------------------------------- init */
+
+refreshCluster();
+refreshJobs();
+setInterval(refreshCluster, 15000);
+const linkedJob = /^#job=([0-9a-f-]{36})$/i.exec(location.hash);
+if (linkedJob) watchJob(linkedJob[1]);
+</script>
+</body>
+</html>

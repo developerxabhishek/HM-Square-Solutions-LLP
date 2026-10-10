@@ -1,0 +1,20 @@
+node_modules/
+.env
+.env.*
+!.env.example
+.local-storage/
+sample-data/
+coverage/
+*.log
+
+# Never commit Google credentials of any kind
+*.json.key
+*-credentials.json
+service-account*.json
+application_default_credentials.json
+.dev-postgres/
+.dev-tools/
+.dev-gcs/
+
+# Local Claude Code settings
+.claude/
